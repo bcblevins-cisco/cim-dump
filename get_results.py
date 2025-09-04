@@ -1,4 +1,10 @@
-from datetime import datetime, timezone
+"""
+Fetches automation pipeline results from a CIM service and stores them.
+
+This script retrieves pipeline IDs for specified projects, fetches detailed
+test run data for each pipeline, processes the results, and then stores
+them either in a JSON file or a SQLite database.
+"""
 import sqlite3
 from typing import List
 from dotenv import dotenv_values
@@ -20,6 +26,7 @@ RUN_END_URL = ENV["RUN_END_URL"]
 CIM_BASE_URL = ENV["CIM_BASE_URL"]
 
 POST_DB = True
+# Flag for development mode to limit the number of API calls
 DEV = True
 
 # endregion
@@ -29,12 +36,23 @@ DEV = True
 
 
 def get_pipeline_ids(project_ids: List[str], url: str):
+    """
+    Fetch all pipeline IDs for a given list of project IDs.
 
+    Args:
+        project_ids: A list of project IDs to query.
+        url: The base URL to fetch pipeline ID groups from.
+
+    Returns:
+        A list of all pipeline IDs found across all specified projects.
+    """
     local_ids = []
     for p in project_ids:
-        for i in range(4 if DEV else 100): #NOTE: limit to 4 pages of results for testing
+        # The API paginates the IDs into groups, so we iterate through pages.
+        for i in range(4 if DEV else 100):
             response = requests.get(f"{url}/{p}/{i}/ids")
             data = response.json()
+            # An empty list indicates the last page has been reached.
             if len(data['pipeline_ids']) == 0:
                 print(f"End of ID groups for project {p}\n")
                 break
@@ -46,9 +64,20 @@ def get_pipeline_ids(project_ids: List[str], url: str):
 
 
 def get_pipelines(url: str, ids: List[str]):
+    """
+    Fetch and process detailed results for each pipeline ID.
+
+    Args:
+        url: The base URL to fetch individual pipeline data.
+        ids: A list of pipeline IDs to process.
+
+    Returns:
+        A list of dictionaries, each containing processed test result data.
+    """
     local_results = []
     count = 0
-    for id in ids[:5] if DEV else ids: #NOTE: Limit to 5 during testing
+    # Limit to 5 pipelines in development mode for faster testing
+    for id in ids[:5] if DEV else ids:
         count += 1
         response = requests.get(f"{url}/{id}")
         data = response.json()
@@ -56,12 +85,15 @@ def get_pipelines(url: str, ids: List[str]):
         stages = data['stages']
         version = data['test_data']['__VERSION__']
         for stage in stages:
+            # Skip stages that are for reporting and not actual tests
             if "report" in stage["name"]:
                 continue
 
             stage_id = stage["id"]
 
-            test_runs_raw = requests.get(f"{RUN_BASE_URL}/{stage_id}?{RUN_END_URL}")
+            test_runs_raw = requests.get(
+                f"{RUN_BASE_URL}/{stage_id}?{RUN_END_URL}"
+                )
             test_runs = test_runs_raw.json()
 
             passed = 0
@@ -81,13 +113,36 @@ def get_pipelines(url: str, ids: List[str]):
     return local_results
 
 
-def write_to_json(results_data: List[dict[str,str]], filename='automation_results.json'):
+def write_to_json(
+    results_data: List[dict[str, str]],
+    filename='automation_results.json'
+):
+    """
+    Write a list of dictionaries to a JSON file.
+
+    Args:
+        results_data: The list of result dictionaries to write.
+        filename: The name of the output JSON file.
+    """
     with open(filename, 'w') as f:
         json.dump(results_data, f, indent=4)
-    print(f"Successfully inserted {len(results_data)} records into {filename}.")
+    print(f"Inserted {len(results_data)} records into {filename}.")
 
 
-def insert_into_db(results_data: List[dict[str,str]], db_path='automation_testing.db'):
+def insert_into_db(
+    results_data: List[dict[str, str]],
+    db_path='automation_testing.db'
+):
+    """
+    Insert a list of test results into a SQLite database.
+
+    Creates the 'results' table if it doesn't exist, then inserts
+    each result from the provided list.
+
+    Args:
+        results_data: A list of result dictionaries to insert.
+        db_path: The file path for the SQLite database.
+    """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -106,8 +161,14 @@ def insert_into_db(results_data: List[dict[str,str]], db_path='automation_testin
     for result in results_data:
 
         cursor.execute("""
-            INSERT INTO results (test_case, result, bundle, cim_url, timestamp, platform)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO results (
+                test_case,
+                result,
+                bundle,
+                cim_url,
+                timestamp,
+                platform
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 result["test_case"],
                 result["result"],
@@ -119,14 +180,13 @@ def insert_into_db(results_data: List[dict[str,str]], db_path='automation_testin
 
     conn.commit()
     conn.close()
-    print(f"Successfully inserted {len(results_data)} records into the database.")
+    print(f"Inserted {len(results_data)} records into the database.")
 
 
 # endregion
 
 # ============================================================================================
 # region Main Project Flow
-
 
 pipeline_ids = get_pipeline_ids(PROJECT_IDS, PIPELINES_URL)
 results = get_pipelines(ONE_PIPELINE_URL, pipeline_ids)

@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import sqlite3
+from typing import List
 from dotenv import dotenv_values
 import requests
 from version_tools import version_to_integer
@@ -7,6 +9,7 @@ import json
 
 # ============================================================================================
 # region Environment Setup
+
 ENV = dotenv_values(".env")
 
 PROJECT_IDS = ENV["PROJECT_IDS"].split(",")
@@ -16,17 +19,20 @@ RUN_BASE_URL = ENV["RUN_BASE_URL"]
 RUN_END_URL = ENV["RUN_END_URL"]
 CIM_BASE_URL = ENV["CIM_BASE_URL"]
 
+POST_DB = True
+DEV = True
+
 # endregion
 
 # ============================================================================================
+# region Main Fns
 
-# region Fetch Pipeline IDs
 
+def get_pipeline_ids(project_ids: List[str], url: str):
 
-def get_pipeline_ids(project_ids, url):
     local_ids = []
     for p in project_ids:
-        for i in range(1): #NOTE: limit to 4 pages of results for testing
+        for i in range(4 if DEV else 100): #NOTE: limit to 4 pages of results for testing
             response = requests.get(f"{url}/{p}/{i}/ids")
             data = response.json()
             if len(data['pipeline_ids']) == 0:
@@ -38,16 +44,11 @@ def get_pipeline_ids(project_ids, url):
     print(f"\nCaptured a total of {len(local_ids)} pipeline IDs.")
     return local_ids
 
-# endregion
 
-# ============================================================================================
-# region Fetch Test Details
-
-
-def get_pipelines(url, ids):
+def get_pipelines(url: str, ids: List[str]):
     local_results = []
     count = 0
-    for id in ids[:5]: #NOTE: Limit to 5 during testing
+    for id in ids[:5] if DEV else ids: #NOTE: Limit to 5 during testing
         count += 1
         response = requests.get(f"{url}/{id}")
         data = response.json()
@@ -79,6 +80,48 @@ def get_pipelines(url, ids):
             })
     return local_results
 
+
+def write_to_json(results_data: List[dict[str,str]], filename='automation_results.json'):
+    with open(filename, 'w') as f:
+        json.dump(results_data, f, indent=4)
+    print(f"Successfully inserted {len(results_data)} records into {filename}.")
+
+
+def insert_into_db(results_data: List[dict[str,str]], db_path='automation_testing.db'):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS "results" (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_case TEXT NOT NULL,
+            bundle INTEGER NOT NULL,
+            result TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            cim_url TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+    for result in results_data:
+
+        cursor.execute("""
+            INSERT INTO results (test_case, result, bundle, cim_url, timestamp, platform)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                result["test_case"],
+                result["result"],
+                result["bundle"],
+                result["cim_url"],
+                result["timestamp"],
+                result["platform"]
+        ))
+
+    conn.commit()
+    conn.close()
+    print(f"Successfully inserted {len(results_data)} records into the database.")
+
+
 # endregion
 
 # ============================================================================================
@@ -88,13 +131,10 @@ def get_pipelines(url, ids):
 pipeline_ids = get_pipeline_ids(PROJECT_IDS, PIPELINES_URL)
 results = get_pipelines(ONE_PIPELINE_URL, pipeline_ids)
 
+if POST_DB:
+    insert_into_db(results)
+else:
+    write_to_json(results)
 
-output_filename = 'automation_results.json'
-with open(output_filename, 'w') as f:
-    json.dump(results, f, indent=4)
-
-print(f"\nResults have been saved to {output_filename}")
 
 # endregion
-
-

@@ -6,11 +6,14 @@ test run data for each pipeline, processes the results, and then stores
 them either in a JSON file or a SQLite database.
 """
 import sqlite3
-from typing import List
-from dotenv import dotenv_values
-import requests
-from version_tools import version_to_integer
 import json
+from typing import List
+
+import requests
+from dotenv import dotenv_values
+
+from version_tools import version_to_integer
+
 
 
 # ============================================================================================

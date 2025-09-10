@@ -46,13 +46,7 @@ python-dotenv
 
 The script requires API endpoints and project IDs to be configured in a `.env` file.
 
-Create a file named `.env` in the root of the project by copying the example template:
-
-```bash
-cp .env.example .env
-```
-
-Now, edit the `.env` file with your specific values:
+Create a file named `.env` in the root of the project. Edit the `.env` file with your specific values:
 
 ```ini
 # .env
@@ -124,14 +118,15 @@ The project is organized into several modules, each with a specific responsibili
 
 ```
 .
-├── main.py             # Main entry point, handles CLI args and setup
-├── orchestrator.py     # Coordinates the entire ETL workflow
-├── api.py              # Handles all communication with the CIM API
-├── processing.py       # Transforms raw API data into structured records
-├── outputs.py          # Handles writing data to JSON or SQLite
-├── models.py           # Defines data structures (Config, ResultRecord)
-├── .env                # Stores environment variables (API keys, URLs)
-├── requirements.txt    # Lists Python dependencies
-└── cim_pipeline.log    # Log file for debug information
+├── main.py
+├── cim_fetcher/
+│   ├── __init__.py 
+│   ├── orchestrator.py
+│   ├── api.py
+│   ├── processing.py
+│   ├── outputs.py
+│   └── models.py
+├── .env
+└── requirements.txt
 ```  
  

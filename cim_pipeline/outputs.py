@@ -50,7 +50,6 @@ class JsonOutput(OutputBase):
             )
             return
 
-        # Use asdict for dataclasses, otherwise fallback to __dict__
         if results and is_dataclass(results[0]):
             output_data = [asdict(record) for record in results]
         else:

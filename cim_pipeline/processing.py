@@ -49,7 +49,6 @@ class ResultProcessor:
         """
         records = []
 
-        # Safely extract top-level information using .get() to avoid KeyErrors
         pipeline_id = result.get('id')
         test_data = result.get('test_data', {})
         version = test_data.get('__VERSION__')

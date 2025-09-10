@@ -5,6 +5,13 @@ This script retrieves pipeline IDs for specified projects, fetches detailed
 test run data for each pipeline, processes the results, and then stores
 them either in a JSON file or a SQLite database.
 """
+# TODO: Create an orchestrator class in app.py to manage the overall workflow.
+# This class would initialize the API client, result processor, and output handlers.
+# It would call the methods to fetch, process, and store the data.
+
+# TODO: Create a cli.py module using argparse to handle command-line arguments.
+# This would allow for dynamic configuration, e.g., specifying project IDs,
+# output format (JSON/SQLite), and development mode from the command line.
 import sqlite3
 import json
 from typing import List
@@ -19,6 +26,8 @@ from version_tools import version_to_integer
 # ============================================================================================
 # region Environment Setup
 
+# TODO: This configuration could be encapsulated in a dedicated Config class,
+# or handled within the CimApi class constructor.
 ENV = dotenv_values(".env")
 
 PROJECT_IDS = ENV["PROJECT_IDS"].split(",")
@@ -28,6 +37,8 @@ RUN_BASE_URL = ENV["RUN_BASE_URL"]
 RUN_END_URL = ENV["RUN_END_URL"]
 CIM_BASE_URL = ENV["CIM_BASE_URL"]
 
+# TODO: The POST_DB and DEV flags should be replaced by command-line arguments
+# handled by the cli.py module.
 POST_DB = True
 # Flag for development mode to limit the number of API calls
 DEV = True
@@ -38,6 +49,9 @@ DEV = True
 # region Main Fns
 
 
+# TODO: This function should be a method within a `CimApi` class.
+# The class would handle all interactions with the CIM API.
+# e.g., `cim_api.get_pipeline_ids(project_ids)`
 def get_pipeline_ids(project_ids: List[str], url: str):
     """
     Fetch all pipeline IDs for a given list of project IDs.
@@ -66,6 +80,9 @@ def get_pipeline_ids(project_ids: List[str], url: str):
     return local_ids
 
 
+# TODO: This function's logic should be split.
+# The API fetching part (`requests.get`) should be in the `CimApi` class.
+# The data transformation part (looping, creating the dictionary) should be in a `ResultProcessor` class.
 def get_pipelines(url: str, ids: List[str]):
     """
     Fetch and process detailed results for each pipeline ID.
@@ -82,9 +99,11 @@ def get_pipelines(url: str, ids: List[str]):
     # Limit to 5 pipelines in development mode for faster testing
     for id in ids[:5] if DEV else ids:
         count += 1
+        # TODO: This API call should be moved to the `CimApi` class.
         response = requests.get(f"{url}/{id}")
         data = response.json()
         print(f"Pipeline {count} recieved:", data['project']['name'])
+        # TODO: This part of the logic should be handled by a `ResultProcessor` class.
         stages = data['stages']
         version = data['test_data']['__VERSION__']
         for stage in stages:
@@ -94,6 +113,7 @@ def get_pipelines(url: str, ids: List[str]):
 
             stage_id = stage["id"]
 
+            # TODO: This API call should also be in the `CimApi` class.
             test_runs_raw = requests.get(
                 f"{RUN_BASE_URL}/{stage_id}?{RUN_END_URL}"
                 )
@@ -116,6 +136,8 @@ def get_pipelines(url: str, ids: List[str]):
     return local_results
 
 
+# TODO: This function should be a method in a `JsonOutput` class.
+# This class would inherit from an abstract `OutputBase` class that defines a common `write(results)` interface.
 def write_to_json(
     results_data: List[dict[str, str]],
     filename='automation_results.json'
@@ -132,6 +154,8 @@ def write_to_json(
     print(f"Inserted {len(results_data)} records into {filename}.")
 
 
+# TODO: This function should be a method in a `SqliteOutput` class.
+# This class would inherit from an abstract `OutputBase` class that defines a common `write(results)` interface.
 def insert_into_db(
     results_data: List[dict[str, str]],
     db_path='automation_testing.db'
@@ -191,6 +215,8 @@ def insert_into_db(
 # ============================================================================================
 # region Main Project Flow
 
+# TODO: This main execution block should be moved into the orchestrator class in `app.py`.
+# The orchestrator would use the CLI arguments to decide which output strategy to use (JSON or SQLite).
 pipeline_ids = get_pipeline_ids(PROJECT_IDS, PIPELINES_URL)
 results = get_pipelines(ONE_PIPELINE_URL, pipeline_ids)
 

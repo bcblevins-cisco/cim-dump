@@ -1,19 +1,26 @@
 import logging
 from typing import Dict, List
 
-from models import Config, ResultRecord # Assuming Config is also in models
-from version_tools import version_to_integer
+from .models import Config, ResultRecord
+from .version_tools import version_to_integer
 
 
 class ResultProcessor:
     """
     Processes raw pipeline data into a structured list of ResultRecord objects.
 
-    This class is designed to be resilient, gracefully skipping records or stages
-    that are malformed or missing required data, while logging appropriate errors.
+    This class is designed to be resilient, gracefully skipping records or
+    stages that are malformed or missing required data, while logging
+    appropriate errors.
     """
 
-    def __init__(self, raw_results: List[Dict], config: Config, logger: logging.Logger) -> None:
+    def __init__(
+            self,
+            raw_results:
+            List[Dict],
+            config: Config,
+            logger: logging.Logger
+    ) -> None:
         """
         Initializes the ResultProcessor.
 
@@ -29,7 +36,8 @@ class ResultProcessor:
 
     def _process_single_result(self, result: Dict) -> List[ResultRecord]:
         """
-        Processes a single raw pipeline result dictionary into a list of ResultRecords.
+        Processes a single raw pipeline result dictionary into a list of
+        ResultRecords.
 
         One pipeline result can produce multiple ResultRecords (one per stage).
 
@@ -40,7 +48,7 @@ class ResultProcessor:
             A list of ResultRecord objects derived from the result's stages.
         """
         records = []
-        
+
         # Safely extract top-level information using .get() to avoid KeyErrors
         pipeline_id = result.get('id')
         test_data = result.get('test_data', {})
@@ -48,13 +56,21 @@ class ResultProcessor:
         stages = result.get('stages', [])
 
         if not all([pipeline_id, version, stages]):
-            self.logger.warning(f"Skipping result due to missing 'id', '__VERSION__', or 'stages'. Data: {result}")
+            self.logger.warning(
+                "Skipping result due to missing 'id', '__VERSION__', or "
+                "'stages'. "
+                f"Data: {result}"
+            )
             return []
 
         try:
             bundle_version = version_to_integer(version)
         except Exception as e:
-            self.logger.error(f"Could not convert version '{version}' for pipeline {pipeline_id}. Skipping. Error: {e}")
+            self.logger.error(
+                f"Could not convert version '{version}' "
+                "for pipeline {pipeline_id}. "
+                f"Skipping. Error: {e}"
+            )
             return []
 
         for stage in stages:
@@ -73,24 +89,32 @@ class ResultProcessor:
                 )
                 records.append(record)
             except KeyError as e:
-                self.logger.warning(f"Skipping stage '{stage_name}' in pipeline {pipeline_id} due to missing key: {e}")
+                self.logger.warning(
+                    f"Skipping stage '{stage_name}' in pipeline {pipeline_id} "
+                    f"due to missing key: {e}"
+                )
             except Exception as e:
-                self.logger.error(f"An unexpected error occurred while processing stage '{stage_name}' in pipeline {pipeline_id}: {e}")
+                self.logger.error(
+                    f"An unexpected error occurred while processing stage "
+                    f"'{stage_name}' in pipeline {pipeline_id}: {e}"
+                )
 
         return records
 
     def process_results(self) -> None:
         """
-        Processes all raw results and populates the `self.processed_records` list.
+        Processes raw results and populates the `self.processed_records` list.
 
         This method iterates through the raw data, delegating the processing of
         each item to a helper method and collecting the structured results.
         """
         self.processed_records = []
         for result in self.raw_results:
-            # The helper method handles all logic and errors for a single result
             records_from_result = self._process_single_result(result)
             if records_from_result:
                 self.processed_records.extend(records_from_result)
-        
-        self.logger.info(f"Successfully processed {len(self.raw_results)} raw results into {len(self.processed_records)} records.")
+
+        self.logger.info(
+            f"Successfully processed {len(self.raw_results)} raw results into "
+            f"{len(self.processed_records)} records."
+        )

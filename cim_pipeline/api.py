@@ -1,9 +1,10 @@
 import logging
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import requests
-from requests.exceptions import RequestException, JSONDecodeError
-from models import Config
+from requests.exceptions import JSONDecodeError, RequestException
+
+from .models import Config
 
 
 class CimApi:
@@ -24,7 +25,7 @@ class CimApi:
         """
         self.config: Config = config
         self.logger: logging.Logger = logger
-        self.session: requests.Session = requests.Session() # Create a session object
+        self.session: requests.Session = requests.Session()
 
         self.pipeline_ids: List[str] = []
         self.raw_results: List[Dict] = []
@@ -41,16 +42,19 @@ class CimApi:
         """
         try:
             response = self.session.get(url, timeout=10)
-            response.raise_for_status() 
+            response.raise_for_status()
             return response.json()
 
         except JSONDecodeError:
-            # The response text might not exist if the request fully failed
             response_text = getattr(response, 'text', 'N/A')
-            self.logger.error(f"Failed to decode JSON from {url}. Response text: {response_text[:100]}")
+            self.logger.error(
+                "Failed to decode JSON from %s. Response text: %s",
+                url,
+                response_text[:100]
+            )
 
         except RequestException as e:
-            self.logger.error(f"Request failed for {url}: {e}")
+            self.logger.error("Request failed for %s: %s", url, e)
 
         return None
 
@@ -59,26 +63,35 @@ class CimApi:
         Fetch all pipeline IDs for the project IDs specified in the config.
         """
         ids: List[str] = []
-        page_limit = self.config.max_pages_dev if self.config.dev else self.config.max_pages_prod
+        page_limit = (
+            self.config.max_pages_dev
+            if self.config.dev
+            else self.config.max_pages_prod
+        )
 
         for project_id in self.config.project_ids:
             for i in range(page_limit):
                 url = f"{self.config.pipelines_url}/{project_id}/{i}/ids"
                 data = self._make_request(url)
 
-
                 if data is None:
                     break
 
                 pipeline_ids = data.get('pipeline_ids', [])
                 if not pipeline_ids:
-                    self.logger.info(f"End of ID groups for project {project_id}")
+                    self.logger.info(
+                        "End of ID groups for project %s", project_id
+                    )
                     break
 
-                self.logger.info(f"Pipeline group {i} for project {project_id} captured")
+                self.logger.info(
+                    "Pipeline group %d for project %s captured", i, project_id
+                )
                 ids.extend(pipeline_ids)
 
-        self.logger.info(f"Captured a total of {len(ids)} pipeline IDs.")
+        self.logger.info(
+            "Captured a total of %d pipeline IDs.", len(ids)
+        )
         self.pipeline_ids = ids
 
     def get_pipeline_results(self) -> None:
@@ -86,18 +99,39 @@ class CimApi:
         Fetch and process detailed results for each pipeline ID.
         """
         self.raw_results = []
-        
+
+        LOG_INTERVAL = 100
+
         pipelines_to_fetch = (
             self.pipeline_ids[:self.config.max_pipelines_dev]
             if self.config.dev
             else self.pipeline_ids
         )
 
-        for pipeline_id in pipelines_to_fetch:
+        total_pipelines = len(pipelines_to_fetch)
+        self.logger.info(
+            "Attempting to fetch details for %d pipelines...", total_pipelines
+        )
+
+        for i, pipeline_id in enumerate(pipelines_to_fetch):
+            self.logger.debug(
+                "Fetching details for pipeline ID: %s", pipeline_id
+            )
+
+            if (i + 1) % LOG_INTERVAL == 0:
+                self.logger.info(
+                    "Progress: Fetched %d of %d pipeline details...",
+                    i + 1,
+                    total_pipelines
+                )
+
             url = f"{self.config.one_pipeline_url}/{pipeline_id}"
             data = self._make_request(url)
 
             if data:
                 self.raw_results.append(data)
 
-        self.logger.info(f"Successfully captured details for {len(self.raw_results)} pipelines.")
+        self.logger.info(
+            "Successfully captured details for %d pipelines.",
+            len(self.raw_results)
+        )

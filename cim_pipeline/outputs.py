@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import asdict, is_dataclass
 from typing import List
 
-from models import Config, ResultRecord 
+from .models import Config, ResultRecord
 
 
 class OutputBase(abc.ABC):
@@ -45,7 +45,9 @@ class JsonOutput(OutputBase):
 
     def write(self, results: List[ResultRecord]) -> None:
         if not self.output_path:
-            self.logger.error("JSON output requested but no output file path was provided.")
+            self.logger.error(
+                "JSON output requested but no output file path was provided."
+            )
             return
 
         # Use asdict for dataclasses, otherwise fallback to __dict__
@@ -57,9 +59,14 @@ class JsonOutput(OutputBase):
         try:
             with open(self.output_path, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, indent=4)
-            self.logger.info(f"Successfully wrote {len(results)} records to {self.output_path}")
+            self.logger.info(
+                f"Successfully wrote {len(results)} records to "
+                f"{self.output_path}"
+            )
         except IOError as e:
-            self.logger.error(f"Failed to write to JSON file at {self.output_path}: {e}")
+            self.logger.error(
+                f"Failed to write to JSON file at {self.output_path}: {e}"
+            )
 
 
 class SqliteOutput(OutputBase):
@@ -88,26 +95,46 @@ class SqliteOutput(OutputBase):
 
     def write(self, results: List[ResultRecord]) -> None:
         if not self.output_path:
-            self.logger.error("SQLite output requested but no database path was provided.")
+            self.logger.error(
+                "SQLite output requested but no database path was provided."
+            )
             return
-        
+
         try:
             with sqlite3.connect(self.output_path) as conn:
                 self._create_table(conn)
-                
+
                 cursor = conn.cursor()
                 data_to_insert = [
-                    (r.test_case, r.result, r.bundle, r.cim_url, r.timestamp, r.platform)
+                    (
+                        r.test_case,
+                        r.result,
+                        r.bundle,
+                        r.cim_url,
+                        r.timestamp,
+                        r.platform
+                    )
                     for r in results
                 ]
-                
-                cursor.executemany('''
-                    INSERT OR IGNORE INTO results (test_case, result, bundle, cim_url, timestamp, platform)
+
+                cursor.executemany(
+                    '''
+                    INSERT OR IGNORE INTO results (
+                        test_case, result, bundle, cim_url, timestamp, platform
+                    )
                     VALUES (?, ?, ?, ?, ?, ?)
-                ''', data_to_insert)
-                
+                    ''',
+                    data_to_insert
+                )
+
                 conn.commit()
-                self.logger.info(f"Wrote {cursor.rowcount} new records to {self.output_path}")
+                rowcount = cursor.rowcount
+                self.logger.info(
+                    f"Wrote {rowcount} new records to {self.output_path}"
+                )
 
         except sqlite3.Error as e:
-            self.logger.error(f"An error occurred with the SQLite database at {self.output_path}: {e}")
+            self.logger.error(
+                f"An error occurred with the SQLite database at "
+                f"{self.output_path}: {e}"
+            )

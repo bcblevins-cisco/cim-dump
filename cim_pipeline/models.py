@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 
-
 @dataclass()
 class Config:
     """
@@ -13,14 +12,12 @@ class Config:
     project_ids: List[str]
     pipelines_url: str
     one_pipeline_url: str
-    run_base_url: str
-    run_end_url: str
     cim_base_url: str
 
     # Behavior and CLI toggles
-    output_type: str            # 'json' or 'sqlite'
-    dev: bool                   # True by default (limits API volume)
-    output_file: Optional[str]  # Path to json or sqlite file
+    output_type: str
+    dev: bool
+    output_file: Optional[str]
 
     # Dev/Prod limits
     max_pages_dev: int = 4
